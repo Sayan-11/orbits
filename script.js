@@ -492,31 +492,36 @@ function initGame() {
 }
 
 function startNewChallenge() {
-  // Ensure message is hidden
-  gameMessage.classList.remove('visible');
-
+  // Ensure game is in PLAYING state
+  gameState = GAME_STATES.PLAYING;
+  
+  // Hide restart button if visible
+  restartButton.style.display = "none";
+  
   // Clear existing objects
   planets.length = 0;
   spaceDebris.length = 0;
   player.trail.length = 0;
   wormhole = null;
   hasBlackHole = false;
-
+  
   // Reset challenge timer
   challengeStartTime = Date.now();
   timeDilationFactor = 1.0;
-
+  
   // Generate new challenge
   generateStarfield();
   generatePlanets();
   generateSpaceDebris();
   generateWormhole();
-
+  
   // Position player at the first planet
-  attachToOrbit(planets[0]);
-
-  // Show brief message for new challenge
-  showMessage('Reach the wormhole!', 1000); // Show for only 1 second
+  if (planets.length > 0) {
+    attachToOrbit(planets[0]);
+  }
+  
+  // Show challenge message
+  showMessage(`Reach the wormhole!`, 2000);
 }
 
 // Optimized starfield generation - fewer stars on mobile
@@ -1075,6 +1080,9 @@ function updateBinaryOrbits(dt) {
 }
 
 function checkCollisions() {
+  // Create closure for challengeComplete to maintain state
+  const completeChallengeOnce = challengeComplete();
+  
   for (let i = spaceDebris.length - 1; i >= 0; i--) {
     const debris = spaceDebris[i];
     const dx = player.x - debris.x;
@@ -1086,7 +1094,7 @@ function checkCollisions() {
         // Time bonus debris
         challengeStartTime += 10000; // Add 10 seconds
         spaceDebris.splice(i, 1);
-        showMessage('+10 seconds!', 1000);
+        showMessage("+10 seconds!", 1000);
         vibrate([20, 20, 20]);
         if (audioInitialized && audioSources.collectSound) {
           audioSources.collectSound();
@@ -1109,7 +1117,8 @@ function checkCollisions() {
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     if (distance < player.radius + wormhole.radius) {
-      challengeComplete();
+      // Call the function through the closure
+      completeChallengeOnce();
     }
   }
 }
@@ -1126,20 +1135,38 @@ function checkTimeLimit() {
 }
 
 function challengeComplete() {
-  challengesCompleted++;
-
-  // Show success message briefly
-  showMessage('Wormhole reached!', 1500); // Shortened to 1.5 seconds
-
-  // Single short vibration for success
-  vibrate([50]); // Single 50ms vibration instead of pattern
-
-  // Immediately clear the game message after delay
-  setTimeout(() => {
-    gameMessage.classList.remove('visible');
-    // Start new challenge without additional delay
-    startNewChallenge();
-  }, 1500);
+  // Flag to prevent multiple triggers
+  let isTransitioning = false;
+  
+  return function() {
+    // Prevent multiple calls
+    if (isTransitioning) return;
+    isTransitioning = true;
+    
+    // Increment counter
+    challengesCompleted++;
+    
+    // Show success message
+    showMessage(`Wormhole reached!`, 1500);
+    
+    // Simple vibration for success
+    vibrate([50]);
+    
+    // Wait a bit before transitioning
+    setTimeout(() => {
+      // Reset flag
+      isTransitioning = false;
+      
+      // Clear message
+      gameMessage.classList.remove("visible");
+      
+      // Hide restart button if visible
+      restartButton.style.display = "none";
+      
+      // Start new challenge without extra delays
+      startNewChallenge();
+    }, 1500);
+  };
 }
 
 // Update endGame function to be cleaner
